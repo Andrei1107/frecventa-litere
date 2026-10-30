@@ -233,6 +233,31 @@ export default function App() {
   const [comparison, setComparison] = useState(null)
   const [cmpIdx, setCmpIdx] = useState({ a: 0, b: 1 })
 
+  async function analyzeFile(f) {
+    const CHUNK_SIZE = 1024 * 1024 // 1 MB per cerere (evită 413 Payload Too Large în Codespaces)
+    if (f.size <= CHUNK_SIZE) {
+      const fd = new FormData()
+      fd.append('file', f)
+      const r = await fetch('/api/analyze', { method: 'POST', body: fd })
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || `Eroare ${r.status}`)
+      return r.json()
+    }
+    const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const total = Math.ceil(f.size / CHUNK_SIZE)
+    for (let i = 0; i < total; i++) {
+      const slice = f.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
+      const fd = new FormData()
+      fd.append('uploadId', uploadId)
+      fd.append('fileName', f.name)
+      fd.append('index', String(i))
+      fd.append('total', String(total))
+      fd.append('chunk', slice, f.name)
+      const r = await fetch('/api/analyze/chunk', { method: 'POST', body: fd })
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || `Eroare ${r.status}`)
+      if (i === total - 1) return r.json()
+    }
+  }
+
   async function upload(e) {
     const files = [...e.target.files]
     e.target.value = ''
@@ -241,11 +266,7 @@ export default function App() {
     try {
       const added = []
       for (const f of files) {
-        const fd = new FormData()
-        fd.append('file', f)
-        const r = await fetch('/api/analyze', { method: 'POST', body: fd })
-        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || `Eroare ${r.status}`)
-        added.push(await r.json())
+        added.push(await analyzeFile(f))
       }
       const nextAnalyses = [...analyses, ...added]
       let nextComparison = comparison
