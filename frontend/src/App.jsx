@@ -233,8 +233,20 @@ export default function App() {
   const [comparison, setComparison] = useState(null)
   const [cmpIdx, setCmpIdx] = useState({ a: 0, b: 1 })
 
+  async function sendChunk(uploadId, fileName, index, total, slice) {
+    const fd = new FormData()
+    fd.append('uploadId', uploadId)
+    fd.append('fileName', fileName)
+    fd.append('index', String(index))
+    fd.append('total', String(total))
+    fd.append('chunk', slice, fileName)
+    const r = await fetch('/api/analyze/chunk', { method: 'POST', body: fd })
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || `Eroare ${r.status}`)
+    return r
+  }
+
   async function analyzeFile(f) {
-    const CHUNK_SIZE = 1024 * 1024 // 1 MB per cerere (evită 413 Payload Too Large în Codespaces)
+    const CHUNK_SIZE = 3 * 1024 * 1024 // 3 MB per cerere (evită 413 Payload Too Large în Codespaces)
     if (f.size <= CHUNK_SIZE) {
       const fd = new FormData()
       fd.append('file', f)
@@ -244,18 +256,15 @@ export default function App() {
     }
     const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const total = Math.ceil(f.size / CHUNK_SIZE)
-    for (let i = 0; i < total; i++) {
+    const firstChunks = []
+    for (let i = 0; i < total - 1; i++) {
       const slice = f.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
-      const fd = new FormData()
-      fd.append('uploadId', uploadId)
-      fd.append('fileName', f.name)
-      fd.append('index', String(i))
-      fd.append('total', String(total))
-      fd.append('chunk', slice, f.name)
-      const r = await fetch('/api/analyze/chunk', { method: 'POST', body: fd })
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || `Eroare ${r.status}`)
-      if (i === total - 1) return r.json()
+      firstChunks.push(sendChunk(uploadId, f.name, i, total, slice))
     }
+    await Promise.all(firstChunks)
+    const lastSlice = f.slice((total - 1) * CHUNK_SIZE, total * CHUNK_SIZE)
+    const lastRes = await sendChunk(uploadId, f.name, total - 1, total, lastSlice)
+    return lastRes.json()
   }
 
   async function upload(e) {
@@ -264,10 +273,7 @@ export default function App() {
     if (!files.length) return
     setError(''); setLoading(true)
     try {
-      const added = []
-      for (const f of files) {
-        added.push(await analyzeFile(f))
-      }
+      const added = await Promise.all(files.map(analyzeFile))
       const nextAnalyses = [...analyses, ...added]
       let nextComparison = comparison
       let nextA = idxA, nextB = idxB, nextCmpIdx = cmpIdx

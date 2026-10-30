@@ -4,6 +4,7 @@ import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
+import org.apache.tika.parser.pdf.PDFParserConfig;
 import org.apache.tika.sax.BodyContentHandler;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
@@ -22,11 +23,22 @@ public class FrequencyService {
             "n", "o", "p", "q", "r", "s", "ș", "t", "ț", "u", "v", "w", "x", "y", "z");
 
     private static final Set<Character> VOWELS = Set.of('a', 'ă', 'â', 'e', 'i', 'î', 'o', 'u');
+    private static final AutoDetectParser PARSER = new AutoDetectParser();
+    private static final PDFParserConfig PDF_CONFIG = new PDFParserConfig();
+
+    static {
+        // Dezactivează OCR (Tesseract) și extragerea imaginilor din PDF-uri pentru viteză maximă
+        PDF_CONFIG.setOcrStrategy(PDFParserConfig.OCR_STRATEGY.NO_OCR);
+        PDF_CONFIG.setExtractInlineImages(false);
+        PDF_CONFIG.setExtractUniqueInlineImagesOnly(false);
+    }
 
     /** Extrage textul din orice format suportat de Tika (pdf, doc, docx, txt, ...). */
     public String extractText(InputStream in) throws IOException, TikaException, SAXException {
         BodyContentHandler handler = new BodyContentHandler(-1); // fără limită de dimensiune
-        new AutoDetectParser().parse(in, handler, new Metadata(), new ParseContext());
+        ParseContext context = new ParseContext();
+        context.set(PDFParserConfig.class, PDF_CONFIG);
+        PARSER.parse(in, handler, new Metadata(), context);
         return handler.toString();
     }
 

@@ -7,9 +7,13 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import ro.securitate.freq.Models.*;
 
+import java.io.InputStream;
+import java.io.SequenceInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api")
@@ -37,7 +41,10 @@ public class AnalysisController {
         }
     }
 
-    /** Upload pe bucăți (1 MB) pentru a trece de limita 413 Payload Too Large a proxy-ului Codespaces. */
+    /**
+     * Upload paralel pe bucăți: fragmentele 0..total-2 se încarcă în paralel,
+     * iar fragmentul final (index == total - 1) le îmbină și declanșează analiza.
+     */
     @PostMapping("/analyze/chunk")
     public ResponseEntity<AnalysisResult> analyzeChunk(
             @RequestParam("uploadId") String uploadId,
@@ -46,23 +53,37 @@ public class AnalysisController {
             @RequestParam("total") int total,
             @RequestParam("chunk") MultipartFile chunk) {
         String safeId = uploadId.replaceAll("[^a-zA-Z0-9_-]", "");
-        Path tempFile = Path.of(System.getProperty("java.io.tmpdir"), "freq_" + safeId + ".tmp");
+        Path tmpDir = Path.of(System.getProperty("java.io.tmpdir"));
+        Path partFile = tmpDir.resolve("freq_" + safeId + "_" + index + ".part");
         try {
-            if (index == 0) {
-                Files.deleteIfExists(tempFile);
-            }
-            Files.write(tempFile, chunk.getBytes(), StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+            chunk.transferTo(partFile);
             if (index < total - 1) {
                 return ResponseEntity.accepted().build();
             }
-            try (var in = Files.newInputStream(tempFile)) {
-                String text = service.extractText(in);
-                return ResponseEntity.ok(service.analyze(fileName, text));
+            List<Path> parts = new ArrayList<>(total);
+            List<InputStream> streams = new ArrayList<>(total);
+            try {
+                for (int i = 0; i < total; i++) {
+                    Path p = tmpDir.resolve("freq_" + safeId + "_" + i + ".part");
+                    parts.add(p);
+                    streams.add(Files.newInputStream(p));
+                }
+                try (InputStream combined = new SequenceInputStream(Collections.enumeration(streams))) {
+                    String text = service.extractText(combined);
+                    return ResponseEntity.ok(service.analyze(fileName, text));
+                }
             } finally {
-                Files.deleteIfExists(tempFile);
+                for (InputStream s : streams) {
+                    try { s.close(); } catch (Exception ignored) {}
+                }
+                for (Path p : parts) {
+                    try { Files.deleteIfExists(p); } catch (Exception ignored) {}
+                }
             }
         } catch (Exception e) {
-            try { Files.deleteIfExists(tempFile); } catch (Exception ignored) {}
+            for (int i = 0; i < total; i++) {
+                try { Files.deleteIfExists(tmpDir.resolve("freq_" + safeId + "_" + i + ".part")); } catch (Exception ignored) {}
+            }
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Nu am putut citi fișierul: " + e.getMessage());
         }
