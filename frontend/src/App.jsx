@@ -8,7 +8,19 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Le
 ChartJS.defaults.animation = false
 
 const COLORS = ['#3b82f6', '#16a34a', '#f97316', '#a855f7', '#ef4444', '#14b8a6']
+const VOWEL_SET = new Set(['a', 'ă', 'â', 'e', 'i', 'î', 'o', 'u'])
+const RO_SET = new Set([
+  'a', 'ă', 'â', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'î', 'j', 'k', 'l', 'm',
+  'n', 'o', 'p', 'q', 'r', 's', 'ș', 't', 'ț', 'u', 'v', 'w', 'x', 'y', 'z',
+])
 const pct = (x, d = 3) => (x * 100).toFixed(d) + '%'
+const smartPct = x => {
+  const p = x * 100
+  if (p === 0) return '0%'
+  if (p >= 0.1) return p.toFixed(2) + '%'
+  if (p >= 0.01) return p.toFixed(3) + '%'
+  return p.toFixed(4) + '%'
+}
 
 function downloadCsv(a) {
   const rows = ['litera,N,f,p']
@@ -23,10 +35,30 @@ function downloadCsv(a) {
 
 function Analysis({ a, color }) {
   const [mode, setMode] = useState('bar')
-  const sorted = useMemo(() => [...a.letters].filter(l => l.absolute > 0)
-    .sort((x, y) => y.absolute - x.absolute), [a])
+  const [view, setView] = useState('table') // 'table' | 'grid'
+  const [sortBy, setSortBy] = useState('freq') // 'freq' | 'alpha'
+  const [hideZero, setHideZero] = useState(true)
+
+  const baseLetters = useMemo(
+    () => a.letters.filter(l => RO_SET.has(l.letter)),
+    [a],
+  )
+  const sorted = useMemo(
+    () => [...baseLetters].filter(l => l.absolute > 0).sort((x, y) => y.absolute - x.absolute),
+    [baseLetters],
+  )
+  const maxRel = sorted.length ? sorted[0].relative : 1
+
+  const displayedLetters = useMemo(() => {
+    const list = hideZero ? baseLetters.filter(l => l.absolute > 0) : [...baseLetters]
+    if (sortBy === 'freq') {
+      list.sort((x, y) => y.absolute - x.absolute)
+    }
+    return list
+  }, [baseLetters, hideZero, sortBy])
+
   const data = {
-    labels: sorted.map(l => l.letter),
+    labels: sorted.map(l => l.letter.toUpperCase()),
     datasets: [{
       label: 'f_X ≈ p_X (frecvență relativă ≈ probabilitate)',
       data: sorted.map(l => l.relative),
@@ -42,7 +74,7 @@ function Analysis({ a, color }) {
           title: items => `Litera „${items[0].label}”`,
           label: ctx => {
             const l = sorted[ctx.dataIndex]
-            return [`${a.fileName}`, `N = ${l.absolute.toLocaleString('ro-RO')}`, `f ≈ p = ${pct(l.relative, 3)}`]
+            return [`${a.fileName}`, `N = ${l.absolute.toLocaleString('ro-RO')}`, `f ≈ p = ${smartPct(l.relative)}`]
           },
         },
       },
@@ -57,18 +89,15 @@ function Analysis({ a, color }) {
       </div>
       <div className="stats">
         <div className="stat">N<sub>total</sub> (total litere)<b>{a.totalLetters.toLocaleString('ro-RO')}</b></div>
-        <div className="stat">Caractere distincte<b>{a.distinctLetters}</b></div>
+        <div className="stat">Caractere distincte<b>{baseLetters.filter(l => l.absolute > 0).length} / 31</b></div>
         <div className="stat">Vocale<b>{pct(a.vowelRatio, 2)}</b>{a.vowels.toLocaleString('ro-RO')} litere</div>
         <div className="stat">Consoane<b>{pct(1 - a.vowelRatio, 2)}</b>{a.consonants.toLocaleString('ro-RO')} litere</div>
       </div>
       <p>
-        Litere din alfabetul românesc (31) lipsă:{' '}
+        Litere din alfabetul românesc (31) lipsă (0 apariții):{' '}
         {a.missingRomanianLetters.length
-          ? a.missingRomanianLetters.map(l => <span className="tag" key={l}>{l}</span>)
+          ? a.missingRomanianLetters.map(l => <span className="tag" key={l}>{l.toUpperCase()}</span>)
           : 'niciuna, toate cele 31 apar'}
-        <br />
-        Litere în plus (non-alfabet românesc):{' '}
-        {a.extraLetters.length ? a.extraLetters.map(l => <span className="tag" key={l}>{l}</span>) : 'niciuna'}
       </p>
       {a.totalLetters < 50000 && (
         <p className="error">Atenție: textul are sub 50.000 de litere </p>
@@ -77,24 +106,96 @@ function Analysis({ a, color }) {
         {mode === 'bar' ? <Bar data={data} options={singleOptions} />
           : <div style={{ maxWidth: 420, margin: 'auto' }}><Pie data={data} /></div>}
       </div>
-      <div className="tablewrap">
-        <table>
+
+      <div className="toolbar">
+        <div className="row">
+          <b>Ordine:</b>
+          <button className={sortBy === 'freq' ? 'active' : ''} onClick={() => setSortBy('freq')}>
+            Descrescător după frecvență (Top)
+          </button>
+          <button className={sortBy === 'alpha' ? 'active' : ''} onClick={() => setSortBy('alpha')}>
+            Alfabetic (A–Z)
+          </button>
+        </div>
+        <div className="row">
+          <b>Afișare:</b>
+          <button className={view === 'table' ? 'active' : ''} onClick={() => setView('table')}>
+            Tabel cu bare
+          </button>
+          <button className={view === 'grid' ? 'active' : ''} onClick={() => setView('grid')}>
+            Grid compact (Carduri)
+          </button>
+          <label className="chk">
+            <input type="checkbox" checked={hideZero} onChange={e => setHideZero(e.target.checked)} />
+            Ascunde literele cu 0 apariții
+          </label>
+        </div>
+      </div>
+
+      {view === 'grid' ? (
+        <div className="letter-grid">
+          {displayedLetters.map((l, idx) => {
+            const isVowel = VOWEL_SET.has(l.letter)
+            const barWidth = maxRel > 0 ? (l.relative / maxRel) * 100 : 0
+            return (
+              <div className="letter-card" key={l.letter}>
+                <div className="letter-card-head">
+                  <span className="letter-rank">#{idx + 1}</span>
+                  <span className="letter-char" style={{ color }}>{l.letter.toUpperCase()}</span>
+                  <span className={`badge ${isVowel ? 'vowel' : 'cons'}`}>
+                    {isVowel ? 'Vocală' : 'Cons.'}
+                  </span>
+                </div>
+                <div className="letter-pct">{smartPct(l.relative)}</div>
+                <div className="letter-meta">
+                  <span>N<sub>{l.letter.toUpperCase()}</sub> = <b>{l.absolute.toLocaleString('ro-RO')}</b></span>
+                  <span>f = {l.relative.toFixed(5)}</span>
+                </div>
+                <div className="bar-track">
+                  <div className="bar-fill" style={{ width: `${barWidth}%`, background: color }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <table className="freq-table">
           <thead><tr>
+            <th style={{ width: 48 }}>#</th>
             <th>Literă (X)</th>
-            <th>N<sub>X</sub></th>
+            <th>Tip</th>
+            <th>N<sub>X</sub> (apariții)</th>
             <th>f<sub>X</sub> = N<sub>X</sub> / N<sub>total</sub></th>
-            <th>p<sub>X</sub> ≈ f<sub>X</sub></th>
+            <th>p<sub>X</sub> ≈ f<sub>X</sub> (%)</th>
+            <th style={{ width: '32%', textAlign: 'left' }}>Distribuție vizuală</th>
           </tr></thead>
           <tbody>
-            {a.letters.map(l => (
-              <tr key={l.letter}>
-                <td>{l.letter}</td><td>{l.absolute}</td>
-                <td>{l.relative.toFixed(6)}</td><td>{pct(l.relative, 4)}</td>
-              </tr>
-            ))}
+            {displayedLetters.map((l, idx) => {
+              const isVowel = VOWEL_SET.has(l.letter)
+              const barWidth = maxRel > 0 ? (l.relative / maxRel) * 100 : 0
+              return (
+                <tr key={l.letter} className={l.absolute === 0 ? 'zero-row' : ''}>
+                  <td>{idx + 1}</td>
+                  <td><b style={{ color, fontSize: '1.05rem' }}>{l.letter.toUpperCase()}</b> ({l.letter})</td>
+                  <td>
+                    <span className={`badge ${isVowel ? 'vowel' : 'cons'}`}>
+                      {isVowel ? 'Vocală' : 'Consoană'}
+                    </span>
+                  </td>
+                  <td><b>{l.absolute.toLocaleString('ro-RO')}</b></td>
+                  <td>{l.relative.toFixed(6)}</td>
+                  <td><b>{smartPct(l.relative)}</b></td>
+                  <td style={{ textAlign: 'left' }}>
+                    <div className="bar-track">
+                      <div className="bar-fill" style={{ width: `${barWidth}%`, background: color }} />
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
-      </div>
+      )}
     </div>
   )
 }
@@ -117,7 +218,7 @@ function Notations() {
 }
 
 function extremes(a) {
-  const present = a.letters.filter(l => l.absolute > 0)
+  const present = a.letters.filter(l => RO_SET.has(l.letter) && l.absolute > 0)
   if (!present.length) return { top: null, rare: null }
   const top = present.reduce((m, l) => (l.absolute > m.absolute ? l : m))
   const rare = present.reduce((m, l) => (l.absolute < m.absolute ? l : m))
@@ -138,22 +239,23 @@ function Duo({ label, a, b, colorA, colorB }) {
 }
 
 function Comparison({ c, colorA, colorB }) {
+  const roDiffs = c.diffs.filter(d => RO_SET.has(d.letter))
   const data = {
-    labels: c.diffs.map(d => d.letter),
+    labels: roDiffs.map(d => d.letter.toUpperCase()),
     datasets: [
-      { label: c.a.fileName, data: c.diffs.map(d => d.relativeA), backgroundColor: colorA },
-      { label: c.b.fileName, data: c.diffs.map(d => d.relativeB), backgroundColor: colorB },
+      { label: c.a.fileName, data: roDiffs.map(d => d.relativeA), backgroundColor: colorA },
+      { label: c.b.fileName, data: roDiffs.map(d => d.relativeB), backgroundColor: colorB },
     ],
   }
   const diffData = {
-    labels: c.diffs.map(d => d.letter),
+    labels: roDiffs.map(d => d.letter.toUpperCase()),
     datasets: [{
       label: `Diferență (puncte procentuale): ${c.b.fileName} − ${c.a.fileName}`,
-      data: c.diffs.map(d => d.diffPercentPoints),
-      backgroundColor: c.diffs.map(d => (d.diffPercentPoints >= 0 ? colorB : colorA)),
+      data: roDiffs.map(d => d.diffPercentPoints),
+      backgroundColor: roDiffs.map(d => (d.diffPercentPoints >= 0 ? colorB : colorA)),
     }],
   }
-  const byLetter = (x, letter) => x.letters.find(l => l.letter === letter)
+  const byLetter = (x, letter) => x.letters.find(l => l.letter === letter.toLowerCase())
   const groupedOptions = {
     plugins: {
       tooltip: {
@@ -162,7 +264,7 @@ function Comparison({ c, colorA, colorB }) {
           label: ctx => {
             const src = ctx.datasetIndex === 0 ? c.a : c.b
             const l = byLetter(src, ctx.label)
-            return `${src.fileName}: f ≈ p = ${pct(ctx.parsed.y, 3)}${l ? ` (N = ${l.absolute.toLocaleString('ro-RO')})` : ''}`
+            return `${src.fileName}: f ≈ p = ${smartPct(ctx.parsed.y)}${l ? ` (N = ${l.absolute.toLocaleString('ro-RO')})` : ''}`
           },
         },
       },
@@ -175,10 +277,10 @@ function Comparison({ c, colorA, colorB }) {
         callbacks: {
           title: items => `Litera „${items[0].label}”`,
           label: ctx => {
-            const d = c.diffs[ctx.dataIndex]
+            const d = roDiffs[ctx.dataIndex]
             return [
-              `${c.a.fileName}: ${pct(d.relativeA, 3)}`,
-              `${c.b.fileName}: ${pct(d.relativeB, 3)}`,
+              `${c.a.fileName}: ${smartPct(d.relativeA)}`,
+              `${c.b.fileName}: ${smartPct(d.relativeB)}`,
               `Diferență: ${d.diffPercentPoints > 0 ? '+' : ''}${d.diffPercentPoints.toFixed(3)} pp`,
             ]
           },
@@ -187,7 +289,9 @@ function Comparison({ c, colorA, colorB }) {
     },
   }
   const ea = extremes(c.a), eb = extremes(c.b)
-  const fmt = l => (l ? `${l.letter.toUpperCase()} (${pct(l.relative, 2)})` : '—')
+  const fmt = l => (l ? `${l.letter.toUpperCase()} — ${l.absolute.toLocaleString('ro-RO')} (${smartPct(l.relative)})` : '—')
+  const roOnlyA = c.onlyInA.filter(l => RO_SET.has(l))
+  const roOnlyB = c.onlyInB.filter(l => RO_SET.has(l))
   return (
     <div className="card">
       <h2>Comparație</h2>
@@ -205,10 +309,10 @@ function Comparison({ c, colorA, colorB }) {
       </div>
       <p>
         Doar în <span style={{ color: colorA }}>{c.a.fileName}</span>:{' '}
-        {c.onlyInA.length ? c.onlyInA.map(l => <span className="tag" key={l}>{l}</span>) : '—'}
+        {roOnlyA.length ? roOnlyA.map(l => <span className="tag" key={l}>{l.toUpperCase()}</span>) : '—'}
         <br />
         Doar în <span style={{ color: colorB }}>{c.b.fileName}</span>:{' '}
-        {c.onlyInB.length ? c.onlyInB.map(l => <span className="tag" key={l}>{l}</span>) : '—'}
+        {roOnlyB.length ? roOnlyB.map(l => <span className="tag" key={l}>{l.toUpperCase()}</span>) : '—'}
       </p>
       <Bar data={data} options={groupedOptions} />
       <h3>Diferența dintre frecvențe, pe literă</h3>

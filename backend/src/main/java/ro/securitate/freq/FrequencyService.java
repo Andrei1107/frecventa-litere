@@ -22,6 +22,7 @@ public class FrequencyService {
             "a", "ă", "â", "b", "c", "d", "e", "f", "g", "h", "i", "î", "j", "k", "l", "m",
             "n", "o", "p", "q", "r", "s", "ș", "t", "ț", "u", "v", "w", "x", "y", "z");
 
+    private static final Set<String> ROMANIAN_SET = new HashSet<>(ROMANIAN_ALPHABET);
     private static final Set<Character> VOWELS = Set.of('a', 'ă', 'â', 'e', 'i', 'î', 'o', 'u');
     private static final AutoDetectParser PARSER = new AutoDetectParser();
     private static final PDFParserConfig PDF_CONFIG = new PDFParserConfig();
@@ -47,32 +48,25 @@ public class FrequencyService {
         long total = 0;
         for (int i = 0; i < text.length(); i++) {
             char c = normalize(text.charAt(i));
-            if (!Character.isLetter(c)) continue; // ignoră spații, cifre, punctuație
+            if (!ROMANIAN_SET.contains(String.valueOf(c))) continue; // păstrează strict cele 31 de litere (A-Z + ă, â, î, ș, ț)
             counts.merge(c, 1L, Long::sum);
             total++;
         }
 
-        // Alfabetul românesc întâi (inclusiv cele cu 0 apariții), apoi literele străine găsite.
-        List<String> order = new ArrayList<>(ROMANIAN_ALPHABET);
-        List<String> extra = new ArrayList<>();
-        counts.keySet().stream().map(String::valueOf).sorted()
-                .filter(s -> !ROMANIAN_ALPHABET.contains(s)).forEach(extra::add);
-        order.addAll(extra);
-
         List<LetterStat> stats = new ArrayList<>();
         List<String> missing = new ArrayList<>();
         long vowels = 0;
-        for (String l : order) {
+        for (String l : ROMANIAN_ALPHABET) {
             long n = counts.getOrDefault(l.charAt(0), 0L);
             double p = total == 0 ? 0 : (double) n / total;
             stats.add(new LetterStat(l, n, p));
-            if (n == 0 && ROMANIAN_ALPHABET.contains(l)) missing.add(l);
+            if (n == 0) missing.add(l);
             if (VOWELS.contains(l.charAt(0))) vowels += n;
         }
         long consonants = total - vowels;
         int distinct = (int) counts.size();
         double vowelRatio = total == 0 ? 0 : (double) vowels / total;
-        return new AnalysisResult(fileName, total, distinct, missing, extra,
+        return new AnalysisResult(fileName, total, distinct, missing, List.of(),
                 vowels, consonants, vowelRatio, stats);
     }
 
