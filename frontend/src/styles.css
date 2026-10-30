@@ -18,3 +18,6 @@ button, select { padding: 6px 12px; border-radius: 6px; border: 1px solid #8aa0b
 .legend { display: flex; gap: 18px; flex-wrap: wrap; font-weight: 600; margin-bottom: 8px; }
 .notations { margin: 0; padding-left: 20px; line-height: 1.6; }
 sub { font-size: .75em; }
+.loading-card { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 36px; gap: 12px; }
+.spinner { width: 36px; height: 36px; border: 4px solid #dce5f0; border-top-color: #3b82f6; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }

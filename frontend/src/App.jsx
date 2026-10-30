@@ -5,6 +5,7 @@ import {
 import { Bar, Pie } from 'react-chartjs-2'
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Legend)
+ChartJS.defaults.animation = false
 
 const COLORS = ['#3b82f6', '#16a34a', '#f97316', '#a855f7', '#ef4444', '#14b8a6']
 const pct = (x, d = 3) => (x * 100).toFixed(d) + '%'
@@ -235,16 +236,38 @@ export default function App() {
   async function upload(e) {
     const files = [...e.target.files]
     e.target.value = ''
+    if (!files.length) return
     setError(''); setLoading(true)
     try {
+      const added = []
       for (const f of files) {
         const fd = new FormData()
         fd.append('file', f)
         const r = await fetch('/api/analyze', { method: 'POST', body: fd })
         if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || `Eroare ${r.status}`)
-        const res = await r.json()
-        setAnalyses(prev => [...prev, res])
+        added.push(await r.json())
       }
+      const nextAnalyses = [...analyses, ...added]
+      let nextComparison = comparison
+      let nextA = idxA, nextB = idxB, nextCmpIdx = cmpIdx
+      if (nextAnalyses.length >= 2) {
+        nextA = nextAnalyses.length - 2
+        nextB = nextAnalyses.length - 1
+        const cr = await fetch('/api/compare', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ a: nextAnalyses[nextA], b: nextAnalyses[nextB] }),
+        })
+        if (cr.ok) {
+          nextComparison = await cr.json()
+          nextCmpIdx = { a: nextA, b: nextB }
+        }
+      }
+      setAnalyses(nextAnalyses)
+      setIdxA(nextA)
+      setIdxB(nextB)
+      setComparison(nextComparison)
+      setCmpIdx(nextCmpIdx)
     } catch (err) { setError(err.message) } finally { setLoading(false) }
   }
 
@@ -252,25 +275,16 @@ export default function App() {
     setError('')
     const a = analyses[idxA], b = analyses[idxB]
     if (!a || !b || idxA === idxB) { setError('Alege două fișiere diferite.'); return }
-    const r = await fetch('/api/compare', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ a, b }),
-    })
-    if (!r.ok) { setError(`Eroare ${r.status}`); return }
-    setComparison(await r.json())
-    setCmpIdx({ a: idxA, b: idxB })
+    setLoading(true)
+    try {
+      const r = await fetch('/api/compare', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ a, b }),
+      })
+      if (!r.ok) { setError(`Eroare ${r.status}`); return }
+      setComparison(await r.json())
+      setCmpIdx({ a: idxA, b: idxB })
+    } catch (err) { setError(err.message) } finally { setLoading(false) }
   }
-
-  // Compară automat când există cel puțin 2 analize și nu s-a făcut încă o comparație.
-  React.useEffect(() => {
-    if (analyses.length >= 2) {
-      const a = analyses.length - 2, b = analyses.length - 1
-      setIdxA(a); setIdxB(b)
-      fetch('/api/compare', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ a: analyses[a], b: analyses[b] }),
-      }).then(r => r.json()).then(res => { setComparison(res); setCmpIdx({ a, b }) }).catch(() => { })
-    }
-  }, [analyses])
 
   return (
     <main>
@@ -280,28 +294,36 @@ export default function App() {
         <p>Încarcă unul sau mai multe fișiere (.txt, .pdf, .doc, .docx, ...)</p>
         <input type="file" multiple onChange={upload} disabled={loading}
           accept=".txt,.pdf,.doc,.docx,.rtf,.odt,.html" />
-        {loading && <p>Se procesează...</p>}
         {error && <p className="error">{error}</p>}
       </div>
 
-      {analyses.length >= 2 && (
-        <div className="card row">
-          Compară:
-          <select value={idxA} onChange={e => setIdxA(+e.target.value)}>
-            {analyses.map((a, i) => <option key={i} value={i}>{a.fileName}</option>)}
-          </select>
-          cu
-          <select value={idxB} onChange={e => setIdxB(+e.target.value)}>
-            {analyses.map((a, i) => <option key={i} value={i}>{a.fileName}</option>)}
-          </select>
-          <button onClick={compare}>Compară</button>
-          <button onClick={() => { setAnalyses([]); setComparison(null) }}>Șterge tot</button>
+      {loading ? (
+        <div className="card loading-card">
+          <div className="spinner" />
+          <p>Se procesează fișierele și se calculează toate statisticile...</p>
         </div>
-      )}
+      ) : (
+        <>
+          {analyses.length >= 2 && (
+            <div className="card row">
+              Compară:
+              <select value={idxA} onChange={e => setIdxA(+e.target.value)}>
+                {analyses.map((a, i) => <option key={i} value={i}>{a.fileName}</option>)}
+              </select>
+              cu
+              <select value={idxB} onChange={e => setIdxB(+e.target.value)}>
+                {analyses.map((a, i) => <option key={i} value={i}>{a.fileName}</option>)}
+              </select>
+              <button onClick={compare}>Compară</button>
+              <button onClick={() => { setAnalyses([]); setComparison(null) }}>Șterge tot</button>
+            </div>
+          )}
 
-      {comparison && <Comparison c={comparison}
-        colorA={COLORS[cmpIdx.a % COLORS.length]} colorB={COLORS[cmpIdx.b % COLORS.length]} />}
-      {analyses.map((a, i) => <Analysis key={i} a={a} color={COLORS[i % COLORS.length]} />)}
+          {comparison && <Comparison c={comparison}
+            colorA={COLORS[cmpIdx.a % COLORS.length]} colorB={COLORS[cmpIdx.b % COLORS.length]} />}
+          {analyses.map((a, i) => <Analysis key={i} a={a} color={COLORS[i % COLORS.length]} />)}
+        </>
+      )}
     </main>
   )
 }
