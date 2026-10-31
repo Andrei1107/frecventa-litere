@@ -12,6 +12,7 @@ import ro.securitate.freq.Models.*;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.Normalizer;
 import java.util.*;
 
 @Service
@@ -44,6 +45,9 @@ public class FrequencyService {
     }
 
     public AnalysisResult analyze(String fileName, String text) {
+        // Compune caracterele descompuse (NFD -> NFC), frecvente pe macOS și în PDF-uri
+        // (ex: 'a' + căciulă combinată devine un singur char 'ă').
+        text = Normalizer.normalize(text, Normalizer.Form.NFC);
         Map<Character, Long> counts = new HashMap<>();
         long total = 0;
         for (int i = 0; i < text.length(); i++) {
@@ -119,12 +123,19 @@ public class FrequencyService {
                 cosine, tvd, sb.toString());
     }
 
-    /** Lowercase + unificarea diacriticelor cu sedilă (ş, ţ) cu cele corecte cu virgulă (ș, ț). */
+    /**
+     * Lowercase + unificarea variantelor de diacritice românești:
+     * - cu sedilă (ş, ţ) sau cu punct dedesubt (ṣ, ṭ) -> cu virgulă (ș, ț)
+     * - 'ã' (folosit în encodări românești vechi) -> 'ă'
+     * - 'ı' (i fără punct din OCR) -> 'i'
+     */
     private static char normalize(char c) {
         c = Character.toLowerCase(c);
         return switch (c) {
-            case 'ş' -> 'ș';
-            case 'ţ' -> 'ț';
+            case 'ş', 'ṣ' -> 'ș';
+            case 'ţ', 'ṭ' -> 'ț';
+            case 'ã' -> 'ă';
+            case 'ı' -> 'i';
             default -> c;
         };
     }
