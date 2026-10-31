@@ -93,12 +93,50 @@ function Analysis({ a, color }) {
         <div className="stat">Vocale<b>{pct(a.vowelRatio, 2)}</b>{a.vowels.toLocaleString('ro-RO')} litere</div>
         <div className="stat">Consoane<b>{pct(1 - a.vowelRatio, 2)}</b>{a.consonants.toLocaleString('ro-RO')} litere</div>
       </div>
-      <p>
-        Litere din alfabetul românesc (31) lipsă (0 apariții):{' '}
-        {a.missingRomanianLetters.length
-          ? a.missingRomanianLetters.map(l => <span className="tag" key={l}>{l.toUpperCase()}</span>)
-          : 'niciuna, toate cele 31 apar'}
-      </p>
+      <div className="alphabet-panel" style={{ borderLeftColor: a.missingRomanianLetters.length ? '#f59e0b' : '#16a34a' }}>
+        <div className="alphabet-panel-head">
+          <div>
+            <b>Inventarul caracterelor distincte (alfabetul de 31 de litere)</b>
+            <div className="alphabet-sub">
+              Prezente: <b>{baseLetters.filter(l => l.absolute > 0).length} / 31</b>
+              {' • '}
+              Lipsă (N<sub>X</sub> = 0): <b>{a.missingRomanianLetters.length}</b>
+            </div>
+          </div>
+          <span className={`status-pill ${a.missingRomanianLetters.length ? 'warn' : 'ok'}`}>
+            {a.missingRomanianLetters.length
+              ? `${a.missingRomanianLetters.length} litere absente`
+              : '✓ Toate cele 31 de litere sunt prezente'}
+          </span>
+        </div>
+
+        <div className="alphabet-chips">
+          {baseLetters.map(l => {
+            const present = l.absolute > 0
+            return (
+              <span
+                key={l.letter}
+                className={`alpha-chip ${present ? 'present' : 'missing'}`}
+                style={present ? { borderColor: color, color } : undefined}
+                title={present ? `${l.letter.toUpperCase()}: ${l.absolute.toLocaleString('ro-RO')} apariții (${smartPct(l.relative)})` : `${l.letter.toUpperCase()}: 0 apariții (lipsă)`}
+              >
+                {l.letter.toUpperCase()}
+              </span>
+            )
+          })}
+        </div>
+
+        {a.missingRomanianLetters.length > 0 && (
+          <div className="missing-row">
+            <span>Litere care <b>nu apar deloc</b> în text (N<sub>X</sub> = 0):</span>
+            <div className="missing-badges">
+              {a.missingRomanianLetters.map(l => (
+                <span className="missing-badge" key={l}>{l.toUpperCase()}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
       {a.totalLetters < 50000 && (
         <p className="error">Atenție: textul are sub 50.000 de litere </p>
       )}
@@ -314,13 +352,33 @@ function Comparison({ c, colorA, colorB }) {
         <Duo label="Cea mai frecventă literă" a={fmt(ea.top)} b={fmt(eb.top)} colorA={colorA} colorB={colorB} />
         <Duo label="Cea mai rară literă" a={fmt(ea.rare)} b={fmt(eb.rare)} colorA={colorA} colorB={colorB} />
       </div>
-      <p>
-        Doar în <span style={{ color: colorA }}>{c.a.fileName}</span>:{' '}
-        {roOnlyA.length ? roOnlyA.map(l => <span className="tag" key={l}>{l.toUpperCase()}</span>) : '—'}
-        <br />
-        Doar în <span style={{ color: colorB }}>{c.b.fileName}</span>:{' '}
-        {roOnlyB.length ? roOnlyB.map(l => <span className="tag" key={l}>{l.toUpperCase()}</span>) : '—'}
-      </p>
+      <div className="exclusive-grid">
+        <div className="diff-guide-card" style={{ borderLeftColor: colorA }}>
+          <div className="diff-guide-title">
+            <span className="diff-pill" style={{ background: colorA }}>Exclusiv în primul text</span>
+            <b style={{ color: colorA }}>{c.a.fileName}</b>
+          </div>
+          <p>Litere care apar în <b>{c.a.fileName}</b>, dar lipsesc complet (0 apariții) din <b>{c.b.fileName}</b>:</p>
+          <div className="missing-badges">
+            {roOnlyA.length
+              ? roOnlyA.map(l => <span className="exclusive-badge" style={{ borderColor: colorA, color: colorA }} key={l}>{l.toUpperCase()}</span>)
+              : <span className="none-badge">Niciuna — toate literele apar și în al doilea text</span>}
+          </div>
+        </div>
+
+        <div className="diff-guide-card" style={{ borderLeftColor: colorB }}>
+          <div className="diff-guide-title">
+            <span className="diff-pill" style={{ background: colorB }}>Exclusiv în al doilea text</span>
+            <b style={{ color: colorB }}>{c.b.fileName}</b>
+          </div>
+          <p>Litere care apar în <b>{c.b.fileName}</b>, dar lipsesc complet (0 apariții) din <b>{c.a.fileName}</b>:</p>
+          <div className="missing-badges">
+            {roOnlyB.length
+              ? roOnlyB.map(l => <span className="exclusive-badge" style={{ borderColor: colorB, color: colorB }} key={l}>{l.toUpperCase()}</span>)
+              : <span className="none-badge">Niciuna — toate literele apar și în primul text</span>}
+          </div>
+        </div>
+      </div>
       <Bar data={data} options={groupedOptions} />
 
       <div className="diff-section">
