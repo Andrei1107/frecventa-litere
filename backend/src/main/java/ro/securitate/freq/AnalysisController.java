@@ -43,8 +43,7 @@ public class AnalysisController {
         }
         long t0 = System.currentTimeMillis();
         try (var in = file.getInputStream()) {
-            String text = service.extractText(name, in);
-            AnalysisResult res = service.analyze(name, text);
+            AnalysisResult res = service.extractAndAnalyze(name, in);
             long elapsed = System.currentTimeMillis() - t0;
             log.info("[ANALYZE-DONE] '{}' procesat complet in {} ms -> N_total={}, distincte={}/31, vocale={} ({}%), consoane={} ({}%), lipsa={}",
                     name, elapsed, res.totalLetters(), res.distinctLetters(),
@@ -96,8 +95,7 @@ public class AnalysisController {
                     streams.add(Files.newInputStream(p));
                 }
                 try (InputStream combined = new SequenceInputStream(Collections.enumeration(streams))) {
-                    String text = service.extractText(fileName, combined);
-                    AnalysisResult res = service.analyze(fileName, text);
+                    AnalysisResult res = service.extractAndAnalyze(fileName, combined);
                     long elapsed = System.currentTimeMillis() - t0;
                     log.info("[CHUNK-DONE] '{}' (din {} fragmente) analizat in {} ms -> N_total={}, distincte={}/31, vocale={}%, lipsa={}",
                             fileName, total, elapsed, res.totalLetters(), res.distinctLetters(),
