@@ -41,3 +41,15 @@ sub { font-size: .75em; }
 .letter-char { font-size: 1.35rem; font-weight: 800; }
 .letter-pct { font-size: 1.05rem; font-weight: 700; }
 .letter-meta { display: flex; justify-content: space-between; font-size: .78rem; color: #475569; }
+
+.diff-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+.diff-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.diff-formula { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #f1f5f9; padding: 6px 12px; border-radius: 8px; font-size: .88rem; }
+.diff-formula code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9rem; background: #fff; padding: 3px 8px; border-radius: 5px; border: 1px solid #dce5f0; }
+.diff-unit { color: #475569; font-size: .82rem; }
+.diff-guide { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.diff-guide-card { background: #f8fafc; border: 1px solid #e2e8f0; border-left-width: 5px; border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.diff-guide-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: .92rem; }
+.diff-pill { color: #fff; font-weight: 700; font-size: .76rem; padding: 3px 8px; border-radius: 99px; white-space: nowrap; }
+.diff-guide-card p { margin: 0; font-size: .86rem; color: #334155; line-height: 1.45; }
+.diff-example { margin-top: auto; padding-top: 6px; border-top: 1px dashed #cbd5e1; font-size: .82rem; color: #1e293b; }

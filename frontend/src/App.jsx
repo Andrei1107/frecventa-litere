@@ -292,6 +292,13 @@ function Comparison({ c, colorA, colorB }) {
   const fmt = l => (l ? `${l.letter.toUpperCase()} — ${l.absolute.toLocaleString('ro-RO')} (${smartPct(l.relative)})` : '—')
   const roOnlyA = c.onlyInA.filter(l => RO_SET.has(l))
   const roOnlyB = c.onlyInB.filter(l => RO_SET.has(l))
+
+  const maxPos = roDiffs.reduce((m, d) => (d.diffPercentPoints > (m?.diffPercentPoints ?? 0) ? d : m), null)
+  const maxNeg = roDiffs.reduce((m, d) => (d.diffPercentPoints < (m?.diffPercentPoints ?? 0) ? d : m), null)
+  const activeDiffs = roDiffs.filter(d => d.relativeA > 0 || d.relativeB > 0)
+  const closest = activeDiffs.length
+    ? activeDiffs.reduce((m, d) => (Math.abs(d.diffPercentPoints) < Math.abs(m.diffPercentPoints) ? d : m))
+    : null
   return (
     <div className="card">
       <h2>Comparație</h2>
@@ -315,15 +322,72 @@ function Comparison({ c, colorA, colorB }) {
         {roOnlyB.length ? roOnlyB.map(l => <span className="tag" key={l}>{l.toUpperCase()}</span>) : '—'}
       </p>
       <Bar data={data} options={groupedOptions} />
-      <h3>Diferența dintre frecvențe, pe literă</h3>
-      <p style={{ marginTop: 0 }}>
-        Pentru fiecare literă: f<sub>X</sub> din <span style={{ color: colorB }}>{c.b.fileName}</span> minus
-        f<sub>X</sub> din <span style={{ color: colorA }}>{c.a.fileName}</span>, în puncte procentuale (pp).
-        Bara în sus (culoarea <span style={{ color: colorB }}>celui de-al doilea text</span>) înseamnă că litera
-        e mai frecventă în al doilea text; bara în jos (culoarea <span style={{ color: colorA }}>primului</span>),
-        că e mai frecventă în primul. Cu cât bara e mai înaltă, cu atât distribuțiile diferă mai mult la acea literă.
-      </p>
-      <Bar data={diffData} options={diffOptions} />
+
+      <div className="diff-section">
+        <div className="diff-header">
+          <h3 style={{ margin: 0 }}>Diferența dintre frecvențe, pe fiecare literă</h3>
+          <div className="diff-formula">
+            <span>Formula:</span>
+            <code>
+              Δ<sub>X</sub> = f<sub>X</sub>(<b style={{ color: colorB }}>{c.b.fileName}</b>) − f<sub>X</sub>(<b style={{ color: colorA }}>{c.a.fileName}</b>)
+            </code>
+            <span className="diff-unit">în puncte procentuale (pp)</span>
+          </div>
+        </div>
+
+        <div className="diff-guide">
+          <div className="diff-guide-card" style={{ borderLeftColor: colorB }}>
+            <div className="diff-guide-title">
+              <span className="diff-pill" style={{ background: colorB }}>▲ Bară în SUS (+)</span>
+              <span>Mai frecventă în <b style={{ color: colorB }}>{c.b.fileName}</b></span>
+            </div>
+            <p>
+              Valoarea este <b>pozitivă</b>: litera apare mai des în al doilea text decât în primul.
+            </p>
+            {maxPos && (
+              <div className="diff-example">
+                Cel mai mare plus: litera <b style={{ color: colorB }}>{maxPos.letter.toUpperCase()}</b>{' '}
+                (<b>+{maxPos.diffPercentPoints.toFixed(2)} pp</b>: {smartPct(maxPos.relativeB)} vs. {smartPct(maxPos.relativeA)})
+              </div>
+            )}
+          </div>
+
+          <div className="diff-guide-card" style={{ borderLeftColor: colorA }}>
+            <div className="diff-guide-title">
+              <span className="diff-pill" style={{ background: colorA }}>▼ Bară în JOS (−)</span>
+              <span>Mai frecventă în <b style={{ color: colorA }}>{c.a.fileName}</b></span>
+            </div>
+            <p>
+              Valoarea este <b>negativă</b>: litera apare mai des în primul text decât în al doilea.
+            </p>
+            {maxNeg && (
+              <div className="diff-example">
+                Cel mai mare minus: litera <b style={{ color: colorA }}>{maxNeg.letter.toUpperCase()}</b>{' '}
+                (<b>{maxNeg.diffPercentPoints.toFixed(2)} pp</b>: {smartPct(maxNeg.relativeB)} vs. {smartPct(maxNeg.relativeA)})
+              </div>
+            )}
+          </div>
+
+          <div className="diff-guide-card" style={{ borderLeftColor: '#64748b' }}>
+            <div className="diff-guide-title">
+              <span className="diff-pill" style={{ background: '#64748b' }}>↕ Înălțimea barei</span>
+              <span>Cât de mult diferă textele</span>
+            </div>
+            <p>
+              <b>Bară înaltă</b> = diferență mare de distribuție la acea literă.<br />
+              <b>Bară aproape de 0</b> = litera are frecvență aproape identică în ambele texte.
+            </p>
+            {closest && (
+              <div className="diff-example">
+                Cea mai apropiată: litera <b>{closest.letter.toUpperCase()}</b>{' '}
+                (diferență de doar <b>{Math.abs(closest.diffPercentPoints).toFixed(3)} pp</b>)
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Bar data={diffData} options={diffOptions} />
+      </div>
     </div>
   )
 }
