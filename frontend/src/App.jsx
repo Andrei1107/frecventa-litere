@@ -419,7 +419,7 @@ export default function App() {
 
   return (
     <main>
-      <h1>Statistica literelor în limba română</h1>
+      <h1>Statistica literelor</h1>
       <Notations />
       <div className="card drop">
         <p>Încarcă unul sau mai multe fișiere (.txt, .pdf, .doc, .docx, ...)</p>

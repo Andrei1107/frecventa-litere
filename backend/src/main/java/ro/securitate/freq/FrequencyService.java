@@ -6,6 +6,8 @@ import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.pdf.PDFParserConfig;
 import org.apache.tika.sax.BodyContentHandler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 import ro.securitate.freq.Models.*;
@@ -17,6 +19,8 @@ import java.util.*;
 
 @Service
 public class FrequencyService {
+
+    private static final Logger log = LoggerFactory.getLogger(FrequencyService.class);
 
     /** Cele 31 de litere ale alfabetului românesc (litere mici), în ordine alfabetică. */
     static final List<String> ROMANIAN_ALPHABET = List.of(
@@ -36,12 +40,17 @@ public class FrequencyService {
     }
 
     /** Extrage textul din orice format suportat de Tika (pdf, doc, docx, txt, ...). */
-    public String extractText(InputStream in) throws IOException, TikaException, SAXException {
+    public String extractText(String fileName, InputStream in) throws IOException, TikaException, SAXException {
+        long t0 = System.currentTimeMillis();
         BodyContentHandler handler = new BodyContentHandler(-1); // fără limită de dimensiune
         ParseContext context = new ParseContext();
         context.set(PDFParserConfig.class, PDF_CONFIG);
         PARSER.parse(in, handler, new Metadata(), context);
-        return handler.toString();
+        String extracted = handler.toString();
+        long elapsed = System.currentTimeMillis() - t0;
+        log.info("[TIKA-EXTRACT] Text extras din '{}' in {} ms ({} caractere brute)",
+                fileName, elapsed, extracted.length());
+        return extracted;
     }
 
     public AnalysisResult analyze(String fileName, String text) {
