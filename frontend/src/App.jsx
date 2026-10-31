@@ -453,59 +453,177 @@ function Comparison({ c, colorA, colorB }) {
 export default function App() {
   const [analyses, setAnalyses] = useState([])
   const [loading, setLoading] = useState(false)
+  const [tasks, setTasks] = useState([])
+  const [globalStatus, setGlobalStatus] = useState('')
   const [error, setError] = useState('')
   const [idxA, setIdxA] = useState(0)
   const [idxB, setIdxB] = useState(1)
   const [comparison, setComparison] = useState(null)
   const [cmpIdx, setCmpIdx] = useState({ a: 0, b: 1 })
 
-  async function sendChunk(uploadId, fileName, index, total, slice) {
-    const fd = new FormData()
-    fd.append('uploadId', uploadId)
-    fd.append('fileName', fileName)
-    fd.append('index', String(index))
-    fd.append('total', String(total))
-    fd.append('chunk', slice, fileName)
-    const r = await fetch('/api/analyze/chunk', { method: 'POST', body: fd })
-    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || `Eroare ${r.status}`)
-    return r
+  function updateTask(id, patch) {
+    setTasks(prev => prev.map(t => (t.id === id ? { ...t, ...patch } : t)))
   }
 
-  async function analyzeFile(f) {
+  /** Trimite un FormData cu XMLHttpRequest ca să putem urmări progresul real la upload. */
+  function postFormWithProgress(url, fd, onUploadPct) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', url)
+      xhr.upload.onprogress = e => {
+        if (e.lengthComputable && onUploadPct) {
+          onUploadPct(Math.round((e.loaded / e.total) * 100))
+        }
+      }
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(xhr.responseText ? JSON.parse(xhr.responseText) : null)
+        } else {
+          let msg = `Eroare ${xhr.status}`
+          try { msg = JSON.parse(xhr.responseText).message || msg } catch {}
+          reject(new Error(msg))
+        }
+      }
+      xhr.onerror = () => reject(new Error('Eroare de rețea la încărcarea fișierului.'))
+      xhr.send(fd)
+    })
+  }
+
+  function startProcessingTicker(taskId, fileName, startPct) {
+    const steps = [
+      { percent: Math.max(startPct, 62), stage: `Se extrage textul din „${fileName}” (Apache Tika)...` },
+      { percent: 78, stage: `Se normalizează diacriticele și se numără aparițiile N_X în „${fileName}”...` },
+      { percent: 91, stage: `Se calculează frecvențele relative f_X = N_X / N_total pentru „${fileName}”...` },
+    ]
+    let i = 0
+    updateTask(taskId, steps[0])
+    const timer = setInterval(() => {
+      i++
+      if (i < steps.length) updateTask(taskId, steps[i])
+    }, 450)
+    return () => clearInterval(timer)
+  }
+
+  async function analyzeFile(f, taskId) {
     const CHUNK_SIZE = 3 * 1024 * 1024 // 3 MB per cerere (evită 413 Payload Too Large în Codespaces)
     if (f.size <= CHUNK_SIZE) {
       const fd = new FormData()
       fd.append('file', f)
-      const r = await fetch('/api/analyze', { method: 'POST', body: fd })
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || `Eroare ${r.status}`)
-      return r.json()
+      let stopTicker = null
+      try {
+        const res = await postFormWithProgress('/api/analyze', fd, upPct => {
+          if (upPct < 100) {
+            const scaled = Math.max(5, Math.round(upPct * 0.55))
+            updateTask(taskId, {
+              percent: scaled,
+              stage: `Se încarcă fișierul „${f.name}” (${upPct}%)...`,
+            })
+          } else if (!stopTicker) {
+            stopTicker = startProcessingTicker(taskId, f.name, 60)
+          }
+        })
+        if (stopTicker) stopTicker()
+        updateTask(taskId, {
+          percent: 100,
+          done: true,
+          stage: `✓ Analiză finalizată: ${res.totalLetters.toLocaleString('ro-RO')} litere contorizate`,
+        })
+        return res
+      } finally {
+        if (stopTicker) stopTicker()
+      }
     }
+
     const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
     const total = Math.ceil(f.size / CHUNK_SIZE)
+    let completedChunks = 0
+    updateTask(taskId, {
+      percent: 5,
+      stage: `Se încarcă „${f.name}” în paralel (0 / ${total} fragmente)...`,
+    })
+
     const firstChunks = []
     for (let i = 0; i < total - 1; i++) {
       const slice = f.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
-      firstChunks.push(sendChunk(uploadId, f.name, i, total, slice))
+      const fd = new FormData()
+      fd.append('uploadId', uploadId)
+      fd.append('fileName', f.name)
+      fd.append('index', String(i))
+      fd.append('total', String(total))
+      fd.append('chunk', slice, f.name)
+      firstChunks.push(
+        postFormWithProgress('/api/analyze/chunk', fd).then(() => {
+          completedChunks++
+          const pct = Math.round((completedChunks / total) * 58)
+          updateTask(taskId, {
+            percent: Math.max(8, pct),
+            stage: `Se încarcă „${f.name}” (${completedChunks} / ${total} fragmente transferate)...`,
+          })
+        }),
+      )
     }
     await Promise.all(firstChunks)
+
     const lastSlice = f.slice((total - 1) * CHUNK_SIZE, total * CHUNK_SIZE)
-    const lastRes = await sendChunk(uploadId, f.name, total - 1, total, lastSlice)
-    return lastRes.json()
+    const lastFd = new FormData()
+    lastFd.append('uploadId', uploadId)
+    lastFd.append('fileName', f.name)
+    lastFd.append('index', String(total - 1))
+    lastFd.append('total', String(total))
+    lastFd.append('chunk', lastSlice, f.name)
+
+    let stopTicker = null
+    try {
+      const res = await postFormWithProgress('/api/analyze/chunk', lastFd, upPct => {
+        if (upPct >= 100 && !stopTicker) {
+          stopTicker = startProcessingTicker(taskId, f.name, 65)
+        }
+      })
+      if (stopTicker) stopTicker()
+      updateTask(taskId, {
+        percent: 100,
+        done: true,
+        stage: `✓ Analiză finalizată: ${res.totalLetters.toLocaleString('ro-RO')} litere contorizate`,
+      })
+      return res
+    } finally {
+      if (stopTicker) stopTicker()
+    }
   }
 
   async function upload(e) {
     const files = [...e.target.files]
     e.target.value = ''
     if (!files.length) return
-    setError(''); setLoading(true)
+    setError('')
+    const baseIdx = analyses.length
+    const initialTasks = files.map((f, i) => ({
+      id: i,
+      fileName: f.name,
+      sizeMb: (f.size / (1024 * 1024)).toFixed(2),
+      color: COLORS[(baseIdx + i) % COLORS.length],
+      percent: 2,
+      done: false,
+      stage: `Se pregătește fișierul „${f.name}”...`,
+    }))
+    setTasks(initialTasks)
+    setGlobalStatus(
+      files.length > 1
+        ? `Se procesează ${files.length} fișiere în paralel...`
+        : `Se analizează fișierul „${files[0].name}”...`,
+    )
+    setLoading(true)
     try {
-      const added = await Promise.all(files.map(analyzeFile))
+      const added = await Promise.all(files.map((f, i) => analyzeFile(f, i)))
       const nextAnalyses = [...analyses, ...added]
       let nextComparison = comparison
       let nextA = idxA, nextB = idxB, nextCmpIdx = cmpIdx
       if (nextAnalyses.length >= 2) {
         nextA = nextAnalyses.length - 2
         nextB = nextAnalyses.length - 1
+        setGlobalStatus(
+          `Se procesează comparația statistică între „${nextAnalyses[nextA].fileName}” și „${nextAnalyses[nextB].fileName}”...`,
+        )
         const cr = await fetch('/api/compare', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -528,6 +646,18 @@ export default function App() {
     setError('')
     const a = analyses[idxA], b = analyses[idxB]
     if (!a || !b || idxA === idxB) { setError('Alege două fișiere diferite.'); return }
+    setTasks([
+      {
+        id: 0,
+        fileName: `${a.fileName} vs. ${b.fileName}`,
+        sizeMb: null,
+        color: COLORS[idxB % COLORS.length],
+        percent: 70,
+        done: false,
+        stage: `Se calculează diferențele Δ_X (pp) și statisticile comparative...`,
+      },
+    ])
+    setGlobalStatus(`Se compară „${a.fileName}” cu „${b.fileName}”...`)
     setLoading(true)
     try {
       const r = await fetch('/api/compare', {
@@ -538,6 +668,10 @@ export default function App() {
       setCmpIdx({ a: idxA, b: idxB })
     } catch (err) { setError(err.message) } finally { setLoading(false) }
   }
+
+  const overallPct = tasks.length
+    ? Math.round(tasks.reduce((s, t) => s + t.percent, 0) / tasks.length)
+    : 0
 
   return (
     <main>
@@ -551,9 +685,38 @@ export default function App() {
       </div>
 
       {loading ? (
-        <div className="card loading-card">
-          <div className="spinner" />
-          <p>Se procesează fișierele și se calculează toate statisticile...</p>
+        <div className="card progress-panel">
+          <div className="progress-global-head">
+            <div className="row">
+              <div className="spinner-sm" />
+              <b>{globalStatus || 'Se procesează...'}</b>
+            </div>
+            <span className="progress-pct-badge">{overallPct}%</span>
+          </div>
+          <div className="progress-track-lg">
+            <div className="progress-fill-lg" style={{ width: `${overallPct}%` }} />
+          </div>
+
+          <div className="progress-tasks">
+            {tasks.map(t => (
+              <div className="progress-task" key={t.id} style={{ borderLeftColor: t.color }}>
+                <div className="progress-task-top">
+                  <span>
+                    <b style={{ color: t.color }}>{t.fileName}</b>
+                    {t.sizeMb && <span className="progress-size"> ({t.sizeMb} MB)</span>}
+                  </span>
+                  <b style={{ color: t.color }}>{t.percent}%</b>
+                </div>
+                <div className="progress-track">
+                  <div
+                    className={`progress-fill ${t.done ? '' : 'animated'}`}
+                    style={{ width: `${t.percent}%`, background: t.color }}
+                  />
+                </div>
+                <div className="progress-stage">{t.stage}</div>
+              </div>
+            ))}
+          </div>
         </div>
       ) : (
         <>
