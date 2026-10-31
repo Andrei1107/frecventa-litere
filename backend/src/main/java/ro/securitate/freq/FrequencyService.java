@@ -27,7 +27,9 @@ public class FrequencyService {
             "a", "ă", "â", "b", "c", "d", "e", "f", "g", "h", "i", "î", "j", "k", "l", "m",
             "n", "o", "p", "q", "r", "s", "ș", "t", "ț", "u", "v", "w", "x", "y", "z");
 
-    private static final Set<String> ROMANIAN_SET = new HashSet<>(ROMANIAN_ALPHABET);
+    private static final Set<Character> ROMANIAN_CHARS = Set.of(
+            'a', 'ă', 'â', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'î', 'j', 'k', 'l', 'm',
+            'n', 'o', 'p', 'q', 'r', 's', 'ș', 't', 'ț', 'u', 'v', 'w', 'x', 'y', 'z');
     private static final Set<Character> VOWELS = Set.of('a', 'ă', 'â', 'e', 'i', 'î', 'o', 'u');
     private static final AutoDetectParser PARSER = new AutoDetectParser();
     private static final PDFParserConfig PDF_CONFIG = new PDFParserConfig();
@@ -40,7 +42,7 @@ public class FrequencyService {
     }
 
     /** Extrage textul din orice format suportat de Tika (pdf, doc, docx, txt, ...). */
-    public String extractText(String fileName, InputStream in) throws IOException, TikaException, SAXException {
+    public synchronized String extractText(String fileName, InputStream in) throws IOException, TikaException, SAXException {
         long t0 = System.currentTimeMillis();
         BodyContentHandler handler = new BodyContentHandler(-1); // fără limită de dimensiune
         ParseContext context = new ParseContext();
@@ -61,8 +63,8 @@ public class FrequencyService {
         long total = 0;
         for (int i = 0; i < text.length(); i++) {
             char c = normalize(text.charAt(i));
-            if (!ROMANIAN_SET.contains(String.valueOf(c))) continue; // păstrează strict cele 31 de litere (A-Z + ă, â, î, ș, ț)
-            counts.merge(c, 1L, Long::sum);
+            if (!ROMANIAN_CHARS.contains(c)) continue; // păstrează strict cele 31 de litere (A-Z + ă, â, î, ș, ț)
+            counts.put(c, counts.getOrDefault(c, 0L) + 1);
             total++;
         }
 

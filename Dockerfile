@@ -42,4 +42,5 @@ COPY --from=backend-builder /app/backend/target/frecventa-litere-1.0.0.jar app.j
 ENV PORT=7860
 EXPOSE 7860
 
-ENTRYPOINT ["java", "-Xmx384m", "-jar", "app.jar"]
+# Limităm Heap-ul la 256MB + Metaspace 96MB ca procesul Java să nu depășească niciodată cei 512MB RAM de pe Render Free
+ENTRYPOINT ["java", "-Xmx256m", "-XX:MaxMetaspaceSize=96m", "-XX:+UseSerialGC", "-Dserver.tomcat.threads.max=20", "-jar", "app.jar"]
