@@ -38,8 +38,8 @@ USER appuser
 
 COPY --from=backend-builder /app/backend/target/frecventa-litere-1.0.0.jar app.jar
 
-# Hugging Face Spaces ascultă pe portul 7860
-ENV SERVER_PORT=7860
+# Portul implicit 7860 (Hugging Face), sau suprascris automat de Render prin variabila PORT
+ENV PORT=7860
 EXPOSE 7860
 
-ENTRYPOINT ["java", "-Xmx1024m", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xmx384m", "-jar", "app.jar"]
