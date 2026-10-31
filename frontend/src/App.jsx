@@ -344,7 +344,7 @@ function Comparison({ c, colorA, colorB }) {
         <span style={{ color: colorA }}>■ {c.a.fileName}</span>
         <span style={{ color: colorB }}>■ {c.b.fileName}</span>
       </div>
-      <div className="stats">
+      <div className="stats stats-6">
         <Duo label="Vocale (%)" a={pct(c.a.vowelRatio, 2)} b={pct(c.b.vowelRatio, 2)} colorA={colorA} colorB={colorB} />
         <Duo label="Consoane (%)" a={pct(1 - c.a.vowelRatio, 2)} b={pct(1 - c.b.vowelRatio, 2)} colorA={colorA} colorB={colorB} />
         <Duo label="Nr. vocale" a={c.a.vowels.toLocaleString('ro-RO')} b={c.b.vowels.toLocaleString('ro-RO')} colorA={colorA} colorB={colorB} />

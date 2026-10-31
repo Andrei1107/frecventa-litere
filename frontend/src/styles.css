@@ -1,9 +1,13 @@
 body { font-family: system-ui, sans-serif; margin: 0; background: #f4f6f9; color: #1d2733; }
-main { max-width: 1120px; margin: 0 auto; padding: 24px; }
+main { max-width: 1200px; margin: 0 auto; padding: 24px; }
 h1 { margin-top: 0; }
 .card { background: #fff; border-radius: 10px; padding: 18px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
 .drop { border: 2px dashed #8aa0b8; border-radius: 10px; padding: 28px; text-align: center; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr)); gap: 10px; margin: 12px 0; }
+.stats-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+.stats-6 .stat { padding: 9px 10px; font-size: .84rem; }
+.stats-6 .stat b { font-size: .96rem; white-space: nowrap; }
+@media (max-width: 900px) { .stats-6 { grid-template-columns: repeat(2, 1fr); } }
 .stat { background: #eef3f9; border-radius: 8px; padding: 10px; }
 .stat b { display: block; font-size: 1.15rem; }
 table { border-collapse: collapse; width: 100%; font-size: .92rem; }
