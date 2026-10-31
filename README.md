@@ -1,8 +1,6 @@
 # Frecvența literelor (Spring Boot + React)
 
-Încarci fișiere (.txt, .pdf, .doc, .docx, ...). Backend-ul extrage textul cu Apache Tika și calculează:
-total litere, caractere distincte (față de cele 31 ale alfabetului românesc), frecvența absolută și relativă,
-raportul vocale/consoane. Frontend-ul desenează graficele (bar/pie) și compară automat ultimele două fișiere încărcate.
+Proiect full-stack (Spring Boot & React) pentru procesarea documentelor (.pdf, .docx, .txt) și extragerea frecvențelor literelor, cu vizualizare grafică a distribuției statistice.
 
 ## Rulare
 Necesită JDK 17+, Maven și Node 18+.
