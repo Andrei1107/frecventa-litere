@@ -15,4 +15,4 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 
 ## API
 - `POST /api/analyze` (multipart, câmp `file`) → statistici pentru un fișier
-- `POST /api/compare` (JSON `{a, b}` cu două rezultate de analiză) → diferențe pe literă, litere lipsă, similaritate cosinus, distanță de variație totală
+- `POST /api/compare` (JSON `{a, b}` cu două rezultate de analiză) → diferențe pe literă și litere lipsă

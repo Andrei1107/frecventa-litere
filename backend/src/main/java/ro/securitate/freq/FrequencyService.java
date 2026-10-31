@@ -70,7 +70,7 @@ public class FrequencyService {
         long consonants = total - vowels;
         int distinct = (int) counts.size();
         double vowelRatio = total == 0 ? 0 : (double) vowels / total;
-        return new AnalysisResult(fileName, total, distinct, missing, List.of(),
+        return new AnalysisResult(fileName, total, distinct, missing,
                 vowels, consonants, vowelRatio, stats);
     }
 
@@ -80,15 +80,10 @@ public class FrequencyService {
         a.letters().forEach(s -> ma.put(s.letter(), s));
         b.letters().forEach(s -> mb.put(s.letter(), s));
 
-        LinkedHashSet<String> all = new LinkedHashSet<>(ROMANIAN_ALPHABET);
-        a.letters().forEach(s -> all.add(s.letter()));
-        b.letters().forEach(s -> all.add(s.letter()));
-
         List<LetterDiff> diffs = new ArrayList<>();
         List<String> onlyA = new ArrayList<>();
         List<String> onlyB = new ArrayList<>();
-        double dot = 0, na = 0, nb = 0, tv = 0;
-        for (String l : all) {
+        for (String l : ROMANIAN_ALPHABET) {
             LetterStat sa = ma.get(l), sb = mb.get(l);
             long ca = sa == null ? 0 : sa.absolute();
             long cb = sb == null ? 0 : sb.absolute();
@@ -97,30 +92,10 @@ public class FrequencyService {
             diffs.add(new LetterDiff(l, pa, pb, (pb - pa) * 100));
             if (ca > 0 && cb == 0) onlyA.add(l);
             if (cb > 0 && ca == 0) onlyB.add(l);
-            dot += pa * pb;
-            na += pa * pa;
-            nb += pb * pb;
-            tv += Math.abs(pa - pb);
         }
-        double cosine = (na == 0 || nb == 0) ? 0 : dot / (Math.sqrt(na) * Math.sqrt(nb));
-        double tvd = tv / 2;
         double vowelDiff = (b.vowelRatio() - a.vowelRatio()) * 100;
 
-        LetterDiff top = diffs.stream()
-                .max(Comparator.comparingDouble(d -> Math.abs(d.diffPercentPoints()))).orElse(null);
-        StringBuilder sb = new StringBuilder();
-        sb.append(String.format(Locale.ROOT,
-                "Similaritate cosinus %.4f, distanța de variație totală %.2f%%. ", cosine, tvd * 100));
-        if (top != null) {
-            sb.append(String.format(Locale.ROOT,
-                    "Cea mai mare diferență: litera '%s' (%+.2f puncte procentuale în %s față de %s). ",
-                    top.letter(), top.diffPercentPoints(), b.fileName(), a.fileName()));
-        }
-        sb.append(String.format(Locale.ROOT, "Vocale: %.2f%% în %s vs. %.2f%% în %s.",
-                a.vowelRatio() * 100, a.fileName(), b.vowelRatio() * 100, b.fileName()));
-
-        return new ComparisonResult(a, b, diffs, onlyA, onlyB, vowelDiff,
-                cosine, tvd, sb.toString());
+        return new ComparisonResult(a, b, diffs, onlyA, onlyB, vowelDiff);
     }
 
     /**

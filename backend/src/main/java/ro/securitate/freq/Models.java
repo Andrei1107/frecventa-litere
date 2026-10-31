@@ -13,7 +13,6 @@ public final class Models {
             long totalLetters,
             int distinctLetters,
             List<String> missingRomanianLetters,
-            List<String> extraLetters,
             long vowels,
             long consonants,
             double vowelRatio,
@@ -29,8 +28,5 @@ public final class Models {
             List<LetterDiff> diffs,
             List<String> onlyInA,
             List<String> onlyInB,
-            double vowelRatioDiffPercentPoints,
-            double cosineSimilarity,
-            double totalVariationDistance,
-            String summary) {}
+            double vowelRatioDiffPercentPoints) {}
 }
