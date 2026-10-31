@@ -42,4 +42,4 @@ COPY --from=backend-builder /app/backend/target/frecventa-litere-1.0.0.jar app.j
 ENV PORT=7860
 EXPOSE 7860
 
-ENTRYPOINT ["java", "-Xmx420m", "-XX:+UseSerialGC", "-jar", "app.jar"]
+ENTRYPOINT ["java", "-Xmx384m", "-jar", "app.jar"]

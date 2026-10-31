@@ -490,17 +490,17 @@ export default function App() {
   }
 
   function startProcessingTicker(taskId, fileName, startPct) {
-    let pct = Math.max(startPct, 58)
-    const getStage = p => {
-      if (p < 78) return `Se extrage textul din paginile documentului „${fileName}” (Apache Tika)...`
-      if (p < 90) return `Se normalizează diacriticele și se contorizează aparițiile N_X în „${fileName}”...`
-      return `Se finalizează calculul frecvențelor f_X = N_X / N_total pentru „${fileName}”...`
-    }
-    updateTask(taskId, { percent: pct, stage: getStage(pct) })
+    const steps = [
+      { percent: Math.max(startPct, 62), stage: `Se extrage textul din „${fileName}” (Apache Tika)...` },
+      { percent: 78, stage: `Se normalizează diacriticele și se numără aparițiile N_X în „${fileName}”...` },
+      { percent: 91, stage: `Se calculează frecvențele relative f_X = N_X / N_total pentru „${fileName}”...` },
+    ]
+    let i = 0
+    updateTask(taskId, steps[0])
     const timer = setInterval(() => {
-      pct = pct < 85 ? pct + 3 : pct < 96 ? pct + 1 : 96
-      updateTask(taskId, { percent: pct, stage: getStage(pct) })
-    }, 600)
+      i++
+      if (i < steps.length) updateTask(taskId, steps[i])
+    }, 450)
     return () => clearInterval(timer)
   }
 
